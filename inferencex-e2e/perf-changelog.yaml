@@ -13300,13 +13300,15 @@
   pr-link: https://github.com/SemiAnalysisAI/InferenceX/pull/5119
 
 - config-keys:
-    - dsv41flash-fp4-mi355x-atom-agentic-dspark-dep8-mega
+    - dsv41flash-fp4-mi355x-atom-agentic-dspark-tp4-dep8
     - dsv41flash-fp4-mi355x-atom-disagg-agentic-dspark
   scenario-type:
     - agentic-coding
   description:
-    - "New single-node key: one DEP8 ATOM server (DP attention, EP8, MegaMoE, 16K prefill chunks) with a 256 GiB Mooncake Store KV offload tier at concurrency 1-256."
-    - "New P/D key (atom-disagg, atomesh, Mooncake P2P): 1P1D DEP4/DEP4 colocated on one node at concurrency 1-256, 1P1D DEP4/DEP8 on two nodes (decode on its own node) at 1-256 and 384, and 2P1D (two DEP4 prefill servers, DEP8 decode) on two nodes at 256, 384 and 512. Prefill and decode use MegaMoE; prefill uses 16K chunks with an 8K long-prefill threshold and a Mooncake Store offload tier."
-    - "Image rocm/atom-dev:agentx-v41-mega-p2-t1-20261124: ATOM main dc6cd23bb plus ROCm/ATOM#3187 (MegaMoEV2 routes), the Store prestart load wait (enabled on prefill at 20 ms) and a DP idle-when-blocked step (left off); the 1P1D DEP4/DEP4 and 1P1D DEP4/DEP8 points also apply ROCm/ATOM#3773 (P/D early handoff, commit ea0732558) to /app/ATOM at worker start and set ATOM_PD_EARLY_HANDOFF=1 on prefill (self-test only, not for ingestion); aiter 7ecd46b07 with ROCm/aiter#7788; FlyDSL 0.5.3."
-    - "FP8 KV, FP4 index cache, five-token DSpark; throughput uses the golden AL, evals use real acceptance."
+    - "Self-test only, not for ingestion: the 1P1D points apply an unmerged ATOM PR at worker start."
+    - "New single-node key: TP4 (default MoE, no KV offload, prefill delayer tuned per point) at concurrency 1-64, and one DEP8 server (DP attention + EP8, MegaMoE, 16K prefill chunks, 256 GiB Mooncake Store, delayer off, 20 ms Store prestart wait) at 32-256."
+    - "New P/D key (atom-disagg, atomesh, Mooncake P2P): 1P1D TP4/TP4 on one node at 1-64, 1P1D DEP4/DEP4 on one node at 32-256, 1P1D DEP4/DEP8 on two nodes at 1-256 and 384, and 2P1D (two DEP4 prefill servers, DEP8 decode) on two nodes at 256, 384 and 512. DEP prefill uses MegaMoE, 16K chunks, an 8K long-prefill threshold and a Mooncake Store tier with a 20 ms prestart wait; DEP decode uses MegaMoE."
+    - "The 1P1D points (TP4/TP4, DEP4/DEP4) and 1P1D DEP4/DEP8 apply ROCm/ATOM#3773 (P/D early handoff, commit ea0732558) to /app/ATOM at worker start and set ATOM_PD_EARLY_HANDOFF=1 on prefill; 2P1D runs without it."
+    - "Image rocm/atom-dev:agentx-v41-mega-p2-t1-20261124: ATOM main dc6cd23bb plus ROCm/ATOM#3187 (MegaMoEV2 routes), the Store prestart load wait and a DP idle-when-blocked step (left off); aiter 7ecd46b07 with ROCm/aiter#7788; FlyDSL 0.5.3."
+    - "Decode-serving instances capture graphs at every even batch size up to 24. FP8 KV, FP4 index cache, five-token DSpark; throughput uses the golden AL, evals use real acceptance."
   pr-link: https://github.com/SemiAnalysisAI/InferenceX/pull/XXX

@@ -17,20 +17,12 @@ base:
     agg:
       nodes: 1
       workers: 1
-      gpus: 8
       args:
         served-model-name: deepseek-ai/DeepSeek-V4.1-Flash
         trust-remote-code: true
-        enable-dp-attention: true
-        enable-expert-parallel: true
-        # MegaMoE's fused large-input route covers 8192 and 16384 rows only (ROCm/ATOM#3187).
-        moe-backend: mega
-        all2all-backend: high-throughput
-        dp-load-balance: share_cache
         kv_cache_dtype: fp8
         index-cache-dtype: fp4
         gpu-memory-utilization: 0.9
-        max-num-seqs: 128
         max-num-batched-tokens: 16384
         attn-prefill-chunk-size: 16384
         enable_prefix_caching: true
@@ -55,9 +47,6 @@ base:
         ATOM_DSV41_MOE_FP8_ACTIVATIONS: '0'
         ATOM_DSPARK_DISABLE_COMPILE: '1'
         ATOM_USE_CUSTOM_ALL_GATHER: '0'
-        ATOM_FRONTEND_PREFIX_HASH: '1'
-        ATOM_DP_SESSION_AFFINITY: '0'
-        MORI_SHMEM_HEAP_SIZE: '17179869184'
         HSA_ENABLE_IPC_MODE_LEGACY: '1'
         # ATOM's standalone Inductor adaptor leaves Triton's cache in /tmp (ROCm/ATOM#2858 open); point it at the cache baked into the image.
         TRITON_CACHE_DIR: /root/.cache/atom/triton
@@ -67,7 +56,6 @@ base:
       AIPERF_HTTP_TCP_USER_TIMEOUT: '900000'
       AIPERF_TIMING_CANCEL_DRAIN_TIMEOUT: '300'
       AIPERF_REQUIRED_SERVER_METRIC_PREFIX: 'atom:'
-      AIPERF_HTTP_X_DYNAMO_SESSION_ID_FROM_CORRELATION_ID: '1'
 
 override_dep8_mega_store:
   services:
@@ -105,8 +93,25 @@ override_dep8_mega_store:
         interval_seconds: 5
   roles:
     agg:
+      gpus: 8
+      args:
+        enable-dp-attention: true
+        enable-expert-parallel: true
+        # MegaMoE's fused large-input route covers 8192 and 16384 rows only (ROCm/ATOM#3187).
+        moe-backend: mega
+        all2all-backend: high-throughput
+        dp-load-balance: share_cache
+        max-num-seqs: 128
+        kv-transfer-config: '{"kv_connector":"mooncake_store","kv_role":"offload","kv_connector_extra_config":{"mooncake_store.master":"127.0.0.1:26051","mooncake_store.metadata":"http://127.0.0.1:26080/metadata","mooncake_store.protocol":"rdma","mooncake_store.rdma_devices":"rdma0,rdma1,rdma2,rdma3,rdma4,rdma5,rdma6,rdma7","mooncake_store.load_pool_mib":1024,"mooncake_store.save_pool_mib":1024}}'
       env:
         <<: *engine_env
+        ATOM_FRONTEND_PREFIX_HASH: '1'
+        ATOM_DP_SESSION_AFFINITY: '0'
+        # With 16K chunks the delayer only holds prefills back.
+        ATOM_ENABLE_PREFILL_DELAYER: '0'
+        # Lets the first forward wait 20 ms for an in-flight Store load instead of recomputing.
+        ATOM_OFFLOAD_PRESTART_LOAD_WAIT_MS: '20'
+        MORI_SHMEM_HEAP_SIZE: '17179869184'
         ATOM_MOONCAKE_MATCHED_RAILS: auto
         MC_NUM_QP_PER_EP: '1'
         MC_GID_INDEX: '@fabric.rdma-gid-index'
@@ -114,10 +119,6 @@ override_dep8_mega_store:
         MC_MAX_MR_SIZE: '1073741824'
         MOONCAKE_DISABLE_HIP_DMABUF: '1'
         OFFLOAD_LOAD_WORKERS: '1'
-      args:
-        kv-transfer-config: '{"kv_connector":"mooncake_store","kv_role":"offload","kv_connector_extra_config":{"mooncake_store.master":"127.0.0.1:26051","mooncake_store.metadata":"http://127.0.0.1:26080/metadata","mooncake_store.protocol":"rdma","mooncake_store.rdma_devices":"rdma0,rdma1,rdma2,rdma3,rdma4,rdma5,rdma6,rdma7","mooncake_store.load_pool_mib":1024,"mooncake_store.save_pool_mib":1024}}'
-
-override_dep8_mega_hbm:
-  roles:
-    agg:
-      gpus: 8
+  benchmark:
+    env:
+      AIPERF_HTTP_X_DYNAMO_SESSION_ID_FROM_CORRELATION_ID: '1'

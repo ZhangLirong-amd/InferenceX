@@ -172,6 +172,22 @@ override_1p1d_dep4_dep4:
         # P answers the router at DP dispatch so D pre-allocates and pulls KV per forward (ROCm/ATOM#3773).
         ATOM_PD_EARLY_HANDOFF: "1"
 
+override_1p1d_tp4_tp4:
+  setup_script: dsv41flash-atom-t2.sh
+  roles:
+    prefill:
+      env:
+        ATOM_PD_EARLY_HANDOFF: "1"
+      args: &tp_only
+        # Plain TP: no DP attention or EP, so MegaMoE (EP only) gives way to the default MoE.
+        enable-dp-attention: null
+        enable-expert-parallel: null
+        moe-backend: null
+        all2all-backend: null
+        dp-load-balance: null
+    decode:
+      args: *tp_only
+
 override_1p1d_dep4_dep8:
   setup_script: dsv41flash-atom-t2.sh
   roles:
