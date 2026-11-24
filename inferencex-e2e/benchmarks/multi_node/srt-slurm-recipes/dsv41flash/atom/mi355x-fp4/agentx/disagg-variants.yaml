@@ -172,21 +172,39 @@ override_1p1d_dep4_dep4:
         # P answers the router at DP dispatch so D pre-allocates and pulls KV per forward (ROCm/ATOM#3773).
         ATOM_PD_EARLY_HANDOFF: "1"
 
-override_1p1d_tp4_tp4:
+override_1p1d_dep4_tp4:
   setup_script: dsv41flash-atom-t2.sh
   roles:
     prefill:
       env:
         ATOM_PD_EARLY_HANDOFF: "1"
-      args: &tp_only
-        # Plain TP: no DP attention or EP, so MegaMoE (EP only) gives way to the default MoE.
+    decode:
+      env: &tp_decode_env
+        ATOM_MONO_ENABLE: "1"
+        ATOM_DISABLE_MORI_EP: "1"
+      args: &tp_decode_args
+        # Plain TP decode with Mono, as in the 4P8D C1 run: no DP attention or EP, so no MegaMoE.
         enable-dp-attention: null
         enable-expert-parallel: null
-        moe-backend: null
-        all2all-backend: null
-        dp-load-balance: null
+        moe-backend: standard
+        all2all-backend: none
+        max-num-seqs: 64
+        # Mono's persistent kernels need the headroom the 4P8D C1 decode ran with.
+        gpu-memory-utilization: 0.65
+        cudagraph-capture-sizes: '[1,2,4,6,8,10,12,14,16,18,20,22,24,28,32,36,40,44,48,64]'
+
+override_1p1d_dep4_tp8:
+  setup_script: dsv41flash-atom-t2.sh
+  roles:
+    prefill:
+      env:
+        ATOM_PD_EARLY_HANDOFF: "1"
     decode:
-      args: *tp_only
+      nodes: 1
+      workers: 1
+      gpus: 8
+      env: *tp_decode_env
+      args: *tp_decode_args
 
 override_1p1d_dep4_dep8:
   setup_script: dsv41flash-atom-t2.sh
