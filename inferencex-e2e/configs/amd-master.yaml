@@ -1074,7 +1074,7 @@ dsv41flash-fp4-mi355x-atom-agentic-dspark:
 
 # Five-token DSpark uses golden AL 3.51 for throughput and real acceptance for eval.
 dsv41flash-fp4-mi355x-atom-agentic-dspark-tp4-dep8:
-  image: rocm/atom-dev:agentx-v41-mega-p2-t1-20261124@sha256:<DIGEST>
+  image: rocm/atom-dev:agentx-v41-mega-p2-t1-20261124@sha256:dfab939840610124989d4864fbf7e3e0c5a786ab16c25acfa41c74e939d25d37
   model: deepseek-ai/DeepSeek-V4.1-Flash
   model-prefix: dsv41flash
   runner: cluster:mi355x-amds
@@ -1092,7 +1092,7 @@ dsv41flash-fp4-mi355x-atom-agentic-dspark-tp4-dep8:
       - { tp: 8, ep: 8, dp-attn: true, kv-offloading: dram, kv-offload-backend: { name: mooncake, version: "206d6340a8b578f44519ccef90bdbfe8483d0231" }, spec-decoding: draft_model, conc-list: [32, 64, 128, 256], srt-recipe: "agentic-dep8-mega.yaml:override_dep8_mega_store" }
 
 dsv41flash-fp4-mi355x-atom-disagg-agentic-dspark:
-  image: rocm/atom-dev:agentx-v41-mega-p2-t1-20261124@sha256:<DIGEST>
+  image: rocm/atom-dev:agentx-v41-mega-p2-t1-20261124@sha256:dfab939840610124989d4864fbf7e3e0c5a786ab16c25acfa41c74e939d25d37
   model: deepseek-ai/DeepSeek-V4.1-Flash
   model-prefix: dsv41flash
   runner: cluster:mi355x-amds
