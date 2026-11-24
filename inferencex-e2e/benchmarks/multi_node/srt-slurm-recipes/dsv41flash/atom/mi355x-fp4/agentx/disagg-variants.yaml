@@ -144,6 +144,8 @@ base:
         dp-load-balance: least_requests
         max-num-batched-tokens: 1024
         attn-prefill-chunk-size: 32768
+        # Decode runs bs 15-20 per rank at C256; the coarse 16->24 step pads those batches (2.5-2.7 ms per step at bs 17-19).
+        cudagraph-capture-sizes: '[1,2,4,6,8,10,12,14,16,18,20,22,24,28,32,36,40,44,48,64,96,128]'
   sbatch_directives:
     cpus-per-task: "128"
     mem: "0"
@@ -175,6 +177,8 @@ override_1p1d_dep4_dep8:
         dp-load-balance: least_requests
         max-num-batched-tokens: 1024
         attn-prefill-chunk-size: 32768
+        # Decode runs bs 15-20 per rank at C256; the coarse 16->24 step pads those batches (2.5-2.7 ms per step at bs 17-19).
+        cudagraph-capture-sizes: '[1,2,4,6,8,10,12,14,16,18,20,22,24,28,32,36,40,44,48,64,96,128]'
 
 override_2p1d_dep4_dep8:
   services:
@@ -196,6 +200,8 @@ override_2p1d_dep4_dep8:
         dp-load-balance: least_requests
         max-num-batched-tokens: 1024
         attn-prefill-chunk-size: 32768
+        # Decode runs bs 15-20 per rank at C256; the coarse 16->24 step pads those batches (2.5-2.7 ms per step at bs 17-19).
+        cudagraph-capture-sizes: '[1,2,4,6,8,10,12,14,16,18,20,22,24,28,32,36,40,44,48,64,96,128]'
 
 override_1p1d_dep8_dep8:
   services:

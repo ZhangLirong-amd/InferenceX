@@ -38,7 +38,8 @@ base:
         state-checkpoint-interval-tokens: 8192
         level: 3
         cudagraph-mode: FULL
-        cudagraph-capture-sizes: '[1,2,4,8,16,24,32,48,64,96,128]'
+        # Decode runs bs 15-20 per rank at C256; the coarse 16->24 step pads those batches (2.5-2.7 ms per step at bs 17-19).
+        cudagraph-capture-sizes: '[1,2,4,6,8,10,12,14,16,18,20,22,24,28,32,36,40,44,48,64,96,128]'
         method: dspark
         num-speculative-tokens: 5
         dspark-config: '{"confidence_schedule":false}'
