@@ -1,0 +1,122 @@
+base:
+  schema: 2
+  name: dsv41flash-fp4-mi355x-atom-agentic-dep8-mega
+  resources:
+    gpu_type: mi355x
+    gpus_per_node: 8
+  frontend:
+    type: atomesh
+    container_image: rocm/atom-dev:agentx-v41-mega-p2-t1-20261124@sha256:<DIGEST>
+    enable_multiple_frontends: false
+  observability:
+    enabled: false
+    tachometer:
+      enabled: false
+  engine: atom
+  roles:
+    agg:
+      nodes: 1
+      workers: 1
+      gpus: 8
+      args:
+        served-model-name: deepseek-ai/DeepSeek-V4.1-Flash
+        trust-remote-code: true
+        enable-dp-attention: true
+        enable-expert-parallel: true
+        # MegaMoE's fused large-input route covers 8192 and 16384 rows only (ROCm/ATOM#3187).
+        moe-backend: mega
+        all2all-backend: high-throughput
+        dp-load-balance: share_cache
+        kv_cache_dtype: fp8
+        index-cache-dtype: fp4
+        gpu-memory-utilization: 0.9
+        max-num-seqs: 128
+        max-num-batched-tokens: 16384
+        attn-prefill-chunk-size: 16384
+        enable_prefix_caching: true
+        block-size: 16
+        state-checkpoint-interval-tokens: 8192
+        level: 3
+        cudagraph-mode: FULL
+        cudagraph-capture-sizes: '[1,2,4,8,16,24,32,48,64,96,128]'
+        method: dspark
+        num-speculative-tokens: 5
+        dspark-config: '{"confidence_schedule":false}'
+        tool-call-parser: dsml_v41
+        # uvicorn's 5 s default resets AIPerf's pooled connections at high concurrency.
+        timeout-keep-alive: 900
+        disable-uvicorn-access-log: true
+      env: &engine_env
+        OMP_NUM_THREADS: '4'
+        AITER_LOG_LEVEL: WARNING
+        ATOM_DISABLE_MMAP: 'true'
+        ATOM_MONO_ENABLE: '1'
+        ATOM_DSV41_MOE_FP8_ACTIVATIONS: '0'
+        ATOM_DSPARK_DISABLE_COMPILE: '1'
+        ATOM_USE_CUSTOM_ALL_GATHER: '0'
+        ATOM_FRONTEND_PREFIX_HASH: '1'
+        ATOM_DP_SESSION_AFFINITY: '0'
+        MORI_SHMEM_HEAP_SIZE: '17179869184'
+        HSA_ENABLE_IPC_MODE_LEGACY: '1'
+        # ATOM's standalone Inductor adaptor leaves Triton's cache in /tmp (ROCm/ATOM#2858 open); point it at the cache baked into the image.
+        TRITON_CACHE_DIR: /root/.cache/atom/triton
+  benchmark:
+    env:
+      # Long AgentX stalls exceed AIPerf's 30 s TCP_USER_TIMEOUT default.
+      AIPERF_HTTP_TCP_USER_TIMEOUT: '900000'
+      AIPERF_TIMING_CANCEL_DRAIN_TIMEOUT: '300'
+      AIPERF_REQUIRED_SERVER_METRIC_PREFIX: 'atom:'
+      AIPERF_HTTP_X_DYNAMO_SESSION_ID_FROM_CORRELATION_ID: '1'
+
+override_dep8_mega_store:
+  services:
+    - &mc_master
+      name: mc-master
+      type: generic
+      start: before_workers
+      critical: true
+      inherit_discovery_env: false
+      command: [mooncake_master, --rpc_port=26051, --rpc_thread_num=32, --enable_http_metadata_server=true, --http_metadata_server_host=0.0.0.0, --http_metadata_server_port=26080, --metrics_port=26090, --default_kv_lease_ttl=10000, --eviction_high_watermark_ratio=0.90, --eviction_ratio=0.05]
+      env: &store_env
+        # A Mooncake process that sees a GPU probes every buffer through HIP.
+        HIP_VISIBLE_DEVICES: "-1"
+        CUDA_VISIBLE_DEVICES: "-1"
+        MC_NUM_QP_PER_EP: "1"
+        MC_GID_INDEX: "@fabric.rdma-gid-index"
+      readiness:
+        port: 26051
+        timeout_seconds: 300
+    - <<: *mc_master
+      name: mc-owner
+      # The fabric is rail-isolated, so the owner registers on every NIC a requester uses.
+      command: [mooncake_client, "--host={node_ip}", --port=26052, --master_server_address=127.0.0.1:26051, --metadata_server=http://127.0.0.1:26080/metadata, --protocol=rdma, "--device_names=rdma0,rdma1,rdma2,rdma3,rdma4,rdma5,rdma6,rdma7", --global_segment_size=274877906944, --local_buffer_size=0, --threads=4]
+      env:
+        <<: *store_env
+        MC_MAX_MR_SIZE: "1073741824"
+        MC_TCP_BIND_ADDRESS: "{node_ip}"
+      # The remapped container root lacks CAP_IPC_LOCK, so registration counts against RLIMIT_MEMLOCK.
+      preamble: ulimit -l unlimited
+      readiness:
+        log:
+          pattern: Starting real client service
+        # mi355x-amds host setup releases hugepages; 256 GiB on 4 KiB pages registers slowly.
+        timeout_seconds: 1800
+        interval_seconds: 5
+  roles:
+    agg:
+      env:
+        <<: *engine_env
+        ATOM_MOONCAKE_MATCHED_RAILS: auto
+        MC_NUM_QP_PER_EP: '1'
+        MC_GID_INDEX: '@fabric.rdma-gid-index'
+        MC_ENABLE_DEST_DEVICE_AFFINITY: '1'
+        MC_MAX_MR_SIZE: '1073741824'
+        MOONCAKE_DISABLE_HIP_DMABUF: '1'
+        OFFLOAD_LOAD_WORKERS: '1'
+      args:
+        kv-transfer-config: '{"kv_connector":"mooncake_store","kv_role":"offload","kv_connector_extra_config":{"mooncake_store.master":"127.0.0.1:26051","mooncake_store.metadata":"http://127.0.0.1:26080/metadata","mooncake_store.protocol":"rdma","mooncake_store.rdma_devices":"rdma0,rdma1,rdma2,rdma3,rdma4,rdma5,rdma6,rdma7","mooncake_store.load_pool_mib":1024,"mooncake_store.save_pool_mib":1024}}'
+
+override_dep8_mega_hbm:
+  roles:
+    agg:
+      gpus: 8
